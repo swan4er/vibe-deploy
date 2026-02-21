@@ -58,7 +58,8 @@ def api_request(method, endpoint, data=None, token=None):
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, context=SSL_CONTEXT) as resp:
-                return json.loads(resp.read().decode())
+                resp_body = resp.read().decode()
+                return json.loads(resp_body) if resp_body.strip() else {}
         except urllib.error.HTTPError as e:
             error_body = e.read().decode() if e.fp else ""
             last_error = {"error": True, "status": e.code, "message": error_body}
