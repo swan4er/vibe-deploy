@@ -9,7 +9,7 @@ After=network.target
 User=app
 Group=app
 WorkingDirectory=/opt/app
-Environment=PATH=/opt/app/venv/bin
+Environment=PATH=/opt/app/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=/opt/app/.env
 ExecStart=/opt/app/venv/bin/gunicorn main:app -w 4 -b 0.0.0.0:${PORT}
 Restart=always

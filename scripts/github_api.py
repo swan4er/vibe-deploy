@@ -36,7 +36,7 @@ def gh_request(method, endpoint, data=None, pat=None):
     body = json.dumps(data).encode() if data else None
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
@@ -106,9 +106,16 @@ def set_secret(owner, repo, name, value):
     print(json.dumps({"ok": True, "secret": name, "repo": f"{owner}/{repo}"}))
 
 
-def set_all_secrets(owner, repo, secrets_json):
-    """Пакетное добавление секретов. secrets_json = '{"KEY": "value", ...}'"""
-    secrets = json.loads(secrets_json)
+def set_all_secrets(owner, repo, secrets_json=None, secrets_file=None):
+    """Пакетное добавление секретов. Принимает JSON из файла (--secrets-file) или строки."""
+    if secrets_file:
+        with open(os.path.expanduser(secrets_file)) as f:
+            secrets = json.load(f)
+    elif secrets_json:
+        secrets = json.loads(secrets_json)
+    else:
+        # Читаем из stdin
+        secrets = json.load(sys.stdin)
 
     # Получить публичный ключ один раз
     pk_data = gh_request("GET", f"/repos/{owner}/{repo}/actions/secrets/public-key")
@@ -154,7 +161,8 @@ def main():
     p = sub.add_parser("set-all-secrets")
     p.add_argument("--owner", required=True)
     p.add_argument("--repo", required=True)
-    p.add_argument("--secrets", required=True, help='JSON: {"KEY": "value", ...}')
+    p.add_argument("--secrets", help='JSON string (NOT recommended for sensitive data)')
+    p.add_argument("--secrets-file", help='Path to JSON file with secrets (recommended)')
 
     args = parser.parse_args()
     if not args.command:
@@ -171,7 +179,7 @@ def main():
     elif cmd == "set-secret":
         set_secret(args.owner, args.repo, args.name, args.value)
     elif cmd == "set-all-secrets":
-        set_all_secrets(args.owner, args.repo, args.secrets)
+        set_all_secrets(args.owner, args.repo, args.secrets, getattr(args, 'secrets_file', None))
 
 
 if __name__ == "__main__":

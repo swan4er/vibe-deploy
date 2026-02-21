@@ -1,3 +1,5 @@
+# Prerequisite: deploy key must be configured on the server
+# See SKILL.md step 9.3 — SSH key for git pull must be set up before this workflow runs
 name: Deploy to VPS (Node.js + PM2)
 on:
   push:
@@ -17,6 +19,6 @@ jobs:
           script: |
             cd /opt/app
             git pull origin main
-            npm ci --production
+            npm ci --omit=dev
             npm run build
             pm2 restart app

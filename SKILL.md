@@ -49,7 +49,7 @@ ssh -i ~/.ssh/timeweb_deploy root@<IP> "cd /opt/app && git pull origin main && d
 
 **VPS + PM2:**
 ```bash
-ssh -i ~/.ssh/timeweb_deploy root@<IP> "cd /opt/app && git pull origin main && npm ci --production && npm run build && pm2 restart app"
+ssh -i ~/.ssh/timeweb_deploy root@<IP> "cd /opt/app && git pull origin main && npm ci --omit=dev && npm run build && pm2 restart app"
 ```
 
 **VPS + systemd:**
@@ -304,11 +304,17 @@ python3 scripts/github_api.py check-visibility --owner <owner> --repo <repo>
 Сохрани и проверь:
 ```bash
 mkdir -p ~/.config/timeweb
-echo "TIMEWEB_CLOUD_TOKEN=<токен>" > ~/.config/timeweb/.env
+```
+Затем используй инструмент Write, чтобы записать файл `~/.config/timeweb/.env` с содержимым:
+```
+TIMEWEB_CLOUD_TOKEN=<токен>
+```
+```bash
 chmod 600 ~/.config/timeweb/.env
-export TIMEWEB_CLOUD_TOKEN=<токен>
+export TIMEWEB_CLOUD_TOKEN=$(grep TIMEWEB_CLOUD_TOKEN ~/.config/timeweb/.env | cut -d= -f2)
 python3 scripts/timeweb_api.py check-token
 ```
+**⚠️ НИКОГДА не передавай токен напрямую в команду `echo` или `export` — он попадёт в историю shell и будет виден через `ps`.**
 
 **Обязательно** обнови `deploy-state.md` через скрипт.
 
@@ -370,11 +376,16 @@ git init && git remote add origin <url> && git add . && git commit -m "Initial c
 
 **Если выбрал Docker** — используй шаблон из `templates/dockerfiles/`, подставив порт и команды проекта:
 - Node.js backend → `templates/dockerfiles/node-backend.Dockerfile`
-- Python FastAPI → `templates/dockerfiles/python-fastapi.Dockerfile`
+- Python → `templates/dockerfiles/python-fastapi.Dockerfile`
 - React/Vue/Svelte/Angular (статика) → `templates/dockerfiles/react-nginx.Dockerfile`
 - Go → `templates/dockerfiles/go.Dockerfile`
 - PHP → `templates/dockerfiles/php-nginx.Dockerfile`
+- Bun → `templates/dockerfiles/bun.Dockerfile`
+- Deno → `templates/dockerfiles/deno.Dockerfile`
 - Fullstack монорепо → `templates/dockerfiles/docker-compose.fullstack.yml`
+
+**⚠️ КРИТИЧЕСКИ ВАЖНО: Подстановка переменных в шаблонах.**
+Шаблоны содержат плейсхолдеры вида `${NODE_VERSION}`, `${PORT}` и т.д. Это **НЕ** Docker ARG/ENV — агент ОБЯЗАН заменить их на конкретные значения перед записью Dockerfile. **Не копируй шаблон напрямую — прочитай его, замени все `${...}` на значения из анализа проекта, и запиши результат в `Dockerfile` проекта.**
 
 **Подстановка переменных в шаблоны:**
 1. **Версия рантайма** (`${NODE_VERSION}`, `${GO_VERSION}`, `${PHP_VERSION}`): из `runtime_version` анализа, или дефолт (Node: 20, Go: 1.22, PHP: 8.3, Python: 3.12)
@@ -467,7 +478,7 @@ python3 scripts/timeweb_api.py wait-server --id <server_id>
 **Сразу после готовности сервера**, перед установкой ПО, выполни базовую защиту:
 
 ```bash
-ssh -o StrictHostKeyChecking=no -i ~/.ssh/timeweb_deploy root@<IP> << 'SECURITY'
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/timeweb_deploy root@<IP> << 'SECURITY'
 # Создать пользователя app (приложение не должно работать от root)
 useradd -r -m -d /opt/app -s /bin/bash app
 
@@ -500,11 +511,11 @@ SECURITY
 
 **С Docker:**
 ```bash
-ssh -o StrictHostKeyChecking=no -i ~/.ssh/timeweb_deploy root@<IP> << 'SETUP'
+ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/timeweb_deploy root@<IP> << 'SETUP'
 apt-get update && apt-get upgrade -y
 curl -fsSL https://get.docker.com | sh
 apt-get install -y docker-compose-plugin nginx certbot python3-certbot-nginx
-mkdir -p /opt/app
+mkdir -p /opt/app && chown app:app /opt/app
 SETUP
 ```
 
@@ -534,7 +545,7 @@ SETUP
 ssh root@<IP> << 'SETUP'
 apt-get update && apt-get upgrade -y
 # Установить Go
-wget -q https://go.dev/dl/go${GO_VERSION:-1.22}.0.linux-amd64.tar.gz
+wget -q https://go.dev/dl/go${GO_VERSION:-1.23}.0.linux-amd64.tar.gz
 tar -C /usr/local -xzf go*.tar.gz && rm go*.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
 export PATH=$PATH:/usr/local/go/bin
@@ -584,7 +595,7 @@ git init && git remote add origin <url> && git add . && git commit -m "Initial c
 
 **С Docker:** `ssh root@<IP> "cd /opt/app && docker compose up -d --build"`
 
-**Node.js + PM2:** `ssh root@<IP> "cd /opt/app && npm ci --production && npm run build && pm2 start dist/index.js --name app && pm2 save && pm2 startup"`
+**Node.js + PM2:** `ssh root@<IP> "cd /opt/app && npm ci --omit=dev && npm run build && pm2 start dist/index.js --name app && pm2 save && pm2 startup"`
 
 **Python + systemd:** Скопируй шаблон `templates/systemd/python-gunicorn.service` в `/etc/systemd/system/app.service`, подставив порт. Затем:
 ```bash
@@ -686,7 +697,7 @@ python3 scripts/timeweb_api.py check-domain --fqdn <domain.com>
 
 ```bash
 ssh root@<IP> "certbot --nginx -d <domain> -d www.<domain> --non-interactive --agree-tos -m <email>"
-ssh root@<IP> 'echo "0 12 * * * /usr/bin/certbot renew --quiet" | crontab -'
+ssh root@<IP> '(crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet") | crontab -'
 ```
 
 App Platform выпускает SSL автоматически.
@@ -710,6 +721,8 @@ App Platform выпускает SSL автоматически.
 ### 9.2. VPS
 
 > Настроить автоматический деплой при push в GitHub (GitHub Actions)?
+
+**⚠️ ВАЖНО: Перед добавлением workflow-файла сначала настрой deploy key на сервере (шаг 9.3) и GitHub Secrets (шаг 9.4). Иначе первый push с workflow вызовет ошибку — `git pull` на сервере не сможет авторизоваться.**
 
 Если да — скопируй подходящий шаблон из `templates/workflows/`:
 - Docker → `vps-docker.yml`
@@ -760,10 +773,15 @@ python3 scripts/github_api.py add-deploy-key --owner <owner> --repo <repo> --pub
 ### 9.4. GitHub Secrets
 
 **Если есть PAT — добавь автоматически:**
-```bash
-python3 scripts/github_api.py set-all-secrets --owner <owner> --repo <repo> \
-  --secrets '{"SERVER_IP": "<IP>", "SSH_PRIVATE_KEY": "<содержимое ~/.ssh/timeweb_deploy>"}'
+Создай временный файл с секретами через инструмент Write (например `/tmp/gh_secrets.json`):
+```json
+{"SERVER_IP": "<IP>", "SSH_PRIVATE_KEY": "<содержимое ~/.ssh/timeweb_deploy>"}
 ```
+```bash
+python3 scripts/github_api.py set-all-secrets --owner <owner> --repo <repo> --secrets-file /tmp/gh_secrets.json
+rm -f /tmp/gh_secrets.json
+```
+**⚠️ Не передавай секреты через `--secrets` в CLI — они будут видны через `ps aux`.**
 
 **Если нет PAT** — дай инструкцию:
 > Добавь секреты: Settings → Secrets → Actions → New:
@@ -776,7 +794,11 @@ python3 scripts/github_api.py set-all-secrets --owner <owner> --repo <repo> \
 > Создай: https://github.com/settings/tokens/new — Scopes: `repo`, Expiration: 30 days
 > Отправь токен, и я настрою всё автоматически. Или скажи "вручную".
 
-Сохрани: `echo "$GITHUB_PAT" > ~/.config/timeweb/.github_pat && chmod 600 ~/.config/timeweb/.github_pat`
+Сохрани PAT: используй инструмент Write, чтобы записать токен в `~/.config/timeweb/.github_pat`, затем:
+```bash
+chmod 600 ~/.config/timeweb/.github_pat
+```
+**⚠️ Не передавай PAT через `echo` в командной строке — он попадёт в историю shell.**
 
 **Обязательно** обнови `deploy-state.md` через скрипт.
 

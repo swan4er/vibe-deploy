@@ -1,5 +1,16 @@
 # Агент: перед копированием на сервер создай пользователя app:
 # useradd -r -m -d /opt/app -s /bin/bash app && chown -R app:app /opt/app
+#
+# Выбери ОДИН из вариантов ниже:
+#
+# === Вариант A: PM2 (рекомендуется — кластеризация, логи, graceful restart) ===
+# При использовании PM2 systemd-юнит НЕ НУЖЕН — PM2 сам управляет процессом.
+# Настройка PM2:
+#   su - app -c "cd /opt/app && pm2 start dist/index.js --name app"
+#   su - app -c "pm2 save"
+#   env PATH=$PATH:/usr/bin pm2 startup systemd -u app --hp /opt/app
+#
+# === Вариант B: systemd напрямую (без PM2) ===
 
 [Unit]
 Description=${APP_NAME}
@@ -9,7 +20,7 @@ After=network.target
 User=app
 Group=app
 WorkingDirectory=/opt/app
-ExecStart=/usr/bin/node dist/index.js
+ExecStart=/usr/bin/node ${ENTRY_POINT}
 EnvironmentFile=/opt/app/.env
 Restart=always
 RestartSec=5

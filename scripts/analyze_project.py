@@ -172,13 +172,17 @@ def detect_framework(project_dir, runtime):
         if os.path.exists(pyproject_path):
             with open(pyproject_path) as f:
                 deps_text += f.read().lower()
+        # Celery is a task queue, not a framework — check it last and only if no real framework found
         frameworks = [
             ("django", "Django"), ("fastapi", "FastAPI"), ("flask", "Flask"),
-            ("celery", "Celery"), ("tornado", "Tornado"), ("aiohttp", "aiohttp"),
+            ("tornado", "Tornado"), ("aiohttp", "aiohttp"),
         ]
         for dep, name in frameworks:
             if dep in deps_text:
                 return name
+        # Celery alone = no web framework detected
+        if "celery" in deps_text:
+            return "Celery (worker)"
         return None
 
     if runtime == "php":
@@ -371,6 +375,29 @@ def detect_port(project_dir):
             if m:
                 return int(m.group(1))
 
+    # Search common entry point source files for port definitions
+    source_files = [
+        "src/index.ts", "src/index.js", "src/server.ts", "src/server.js",
+        "src/main.ts", "src/main.js", "index.ts", "index.js", "server.ts", "server.js",
+        "main.py", "app.py", "run.py", "manage.py",
+        "main.go", "cmd/server/main.go",
+    ]
+    port_patterns = [
+        r"\.listen\(\s*(\d{4,5})",               # app.listen(3000)
+        r"port\s*[:=]\s*(\d{4,5})",               # port = 8000, port: 3000
+        r"PORT\s*[:=]\s*[\"']?(\d{4,5})",         # PORT = "8080"
+        r"Addr\s*[:=]\s*[\"']:(\d{4,5})",         # Go: Addr: ":8080"
+    ]
+    for src_file in source_files:
+        content = read_file(os.path.join(project_dir, src_file))
+        if content:
+            for pattern in port_patterns:
+                m = re.search(pattern, content)
+                if m:
+                    port = int(m.group(1))
+                    if 1024 <= port <= 65535:
+                        return port
+
     # Defaults by framework/runtime
     return None
 
@@ -435,7 +462,8 @@ def detect_env_vars(project_dir):
     """Ищет .env файлы, извлекает переменные."""
     result = {"files": {}, "defined": [], "missing": []}
 
-    env_files = [".env", ".env.local", ".env.production", ".env.example", ".env.sample"]
+    env_files = [".env", ".env.local", ".env.production", ".env.development",
+                 ".env.staging", ".env.test", ".env.example", ".env.sample"]
     for ef in env_files:
         path = os.path.join(project_dir, ef)
         if os.path.exists(path):

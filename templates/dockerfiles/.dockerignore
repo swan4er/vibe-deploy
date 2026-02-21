@@ -21,14 +21,7 @@ __pycache__
 *.swp
 *.swo
 
-# Результаты сборки (пересобираются внутри контейнера)
-dist
-build
-.next
-out
-
 # Документация и тесты
-*.md
 LICENSE
 tests
 __tests__
@@ -44,3 +37,11 @@ compose*.yml
 # Деплой-артефакты
 deploy-state.md
 DEPLOY.md
+
+# Агент: НЕ исключай директории сборки (dist, build, .next, out),
+# если проект без билд-шага в Docker (Вариант B — JavaScript без сборки).
+# Раскомментируй строки ниже ТОЛЬКО если Dockerfile содержит билд-шаг:
+# dist
+# build
+# .next
+# out

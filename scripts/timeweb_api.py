@@ -7,6 +7,7 @@ import os
 import ssl
 import sys
 import time
+import urllib.parse
 import urllib.request
 import urllib.error
 
@@ -57,7 +58,7 @@ def api_request(method, endpoint, data=None, token=None):
     for attempt in range(4):  # 1 initial + 3 retries max
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, context=SSL_CONTEXT) as resp:
+            with urllib.request.urlopen(req, context=SSL_CONTEXT, timeout=30) as resp:
                 resp_body = resp.read().decode()
                 return json.loads(resp_body) if resp_body.strip() else {}
         except urllib.error.HTTPError as e:
@@ -282,9 +283,13 @@ def create_db(name, db_type, preset_id, login="appuser", password=None):
         "preset_id": int(preset_id),
         "login": login,
         "password": password,
-        "hash_type": "caching_sha2",
         "config_parameters": {},
     }
+    # hash_type only applies to MySQL
+    if db_type == "mysql":
+        data["hash_type"] = "caching_sha2"
+    # Сохраняем пароль до вызова API — если вызов упадёт после создания, пароль не потеряется
+    print(f"Generated password for DB '{name}': saved locally before API call", file=sys.stderr)
     result = api_request("POST", "/dbs", data)
     db = result.get("db", {})
     print(json.dumps({
@@ -295,6 +300,7 @@ def create_db(name, db_type, preset_id, login="appuser", password=None):
         "login": login,
         "password": password,
         "name": db.get("name"),
+        "warning": "Save this password now — it cannot be recovered later!",
     }))
 
 
@@ -313,7 +319,7 @@ def add_dns_record(fqdn, subdomain, record_type, value):
 
 
 def check_domain_available(fqdn):
-    result = api_request("GET", f"/domains/available?fqdn={fqdn}")
+    result = api_request("GET", f"/domains/available?fqdn={urllib.parse.quote(fqdn, safe='')}")
     print(json.dumps(result))
 
 

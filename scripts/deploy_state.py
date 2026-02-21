@@ -88,7 +88,7 @@ def init(path, project_data=None):
 
 
 def update(path, section, key, value):
-    """Обновляет конкретное поле в state-файле."""
+    """Обновляет конкретное поле в state-файле. Если section указан — ищет только в этой секции."""
     if not os.path.exists(path):
         print(json.dumps({"error": f"State file not found: {path}"}))
         sys.exit(1)
@@ -96,19 +96,39 @@ def update(path, section, key, value):
     with open(path) as f:
         content = f.read()
 
-    # Ищем строку вида "- Key: old_value" в нужной секции
-    # Простой подход: замена по паттерну
-    pattern = re.compile(rf"(- {re.escape(key)}:\s*)(.+)")
-    new_content, count = pattern.subn(rf"\g<1>{value}", content)
+    if section:
+        # Найти секцию и заменить только внутри неё
+        section_pattern = re.compile(
+            rf"(## {re.escape(section)}\n)(.*?)(?=\n## |\Z)",
+            re.DOTALL
+        )
+        section_match = section_pattern.search(content)
+        if not section_match:
+            print(json.dumps({"error": f"Section '{section}' not found in state file"}))
+            sys.exit(1)
 
-    if count == 0:
-        print(json.dumps({"error": f"Key '{key}' not found in state file"}))
-        sys.exit(1)
+        section_text = section_match.group(2)
+        line_pattern = re.compile(rf"(- {re.escape(key)}:\s*)(.+)")
+        new_section, count = line_pattern.subn(rf"\g<1>{value}", section_text)
+
+        if count == 0:
+            print(json.dumps({"error": f"Key '{key}' not found in section '{section}'"}))
+            sys.exit(1)
+
+        new_content = content[:section_match.start(2)] + new_section + content[section_match.end(2):]
+    else:
+        # Без секции — заменить первое вхождение
+        pattern = re.compile(rf"(- {re.escape(key)}:\s*)(.+)")
+        new_content, count = pattern.subn(rf"\g<1>{value}", content, count=1)
+
+        if count == 0:
+            print(json.dumps({"error": f"Key '{key}' not found in state file"}))
+            sys.exit(1)
 
     with open(path, "w") as f:
         f.write(new_content)
 
-    print(json.dumps({"ok": True, "updated": key, "value": value}))
+    print(json.dumps({"ok": True, "updated": key, "value": value, "section": section}))
 
 
 def check_progress(path, step_name, done=True):
@@ -185,6 +205,7 @@ def main():
 
     p = sub.add_parser("update")
     p.add_argument("--path", default=DEFAULT_PATH)
+    p.add_argument("--section", help="Section name, e.g. 'Решения пользователя'")
     p.add_argument("--key", required=True, help="Field name, e.g. 'Стратегия'")
     p.add_argument("--value", required=True)
 
@@ -207,7 +228,7 @@ def main():
             project_data = json.loads(args.project_json)
         init(args.path, project_data)
     elif args.command == "update":
-        update(args.path, None, args.key, args.value)
+        update(args.path, getattr(args, 'section', None), args.key, args.value)
     elif args.command == "check":
         check_progress(args.path, args.step, done=not args.skip)
     elif args.command == "verify":

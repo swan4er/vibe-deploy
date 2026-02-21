@@ -8,7 +8,13 @@ jobs:
     steps:
       - name: Trigger deploy
         run: |
-          curl -s -X POST \
+          HTTP_CODE=$(curl -s -o /tmp/deploy_response.json -w "%{http_code}" -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.TIMEWEB_CLOUD_TOKEN }}" \
-            "https://api.timeweb.cloud/api/v1/apps/${{ secrets.APP_ID }}/deploy"
+            "https://api.timeweb.cloud/api/v1/apps/${{ secrets.APP_ID }}/deploy")
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "Deploy failed with HTTP $HTTP_CODE"
+            cat /tmp/deploy_response.json
+            exit 1
+          fi
+          echo "Deploy triggered successfully (HTTP $HTTP_CODE)"
