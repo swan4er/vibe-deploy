@@ -1,6 +1,6 @@
 # vibe-deploy
 
-Скилл для Claude Code — автоматический деплой проектов на [Timeweb Cloud](https://timeweb.cloud).
+Скилл для Claude Code и других агентов — автоматический деплой проектов на [Timeweb Cloud](https://timeweb.cloud).
 
 ## Что умеет
 
