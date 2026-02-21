@@ -1,0 +1,46 @@
+# Зависимости
+node_modules
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+
+# Git
+.git
+.gitignore
+
+# Env-файлы (секреты не должны попадать в образ!)
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Результаты сборки (пересобираются внутри контейнера)
+dist
+build
+.next
+out
+
+# Документация и тесты
+*.md
+LICENSE
+tests
+__tests__
+coverage
+.nyc_output
+
+# Docker
+Dockerfile
+docker-compose*.yml
+compose*.yml
+.dockerignore
+
+# Деплой-артефакты
+deploy-state.md
+DEPLOY.md

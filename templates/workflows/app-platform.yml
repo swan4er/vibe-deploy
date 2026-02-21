@@ -1,0 +1,14 @@
+name: Deploy to Timeweb App Platform
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy
+        run: |
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.TIMEWEB_CLOUD_TOKEN }}" \
+            "https://api.timeweb.cloud/api/v1/apps/${{ secrets.APP_ID }}/deploy"

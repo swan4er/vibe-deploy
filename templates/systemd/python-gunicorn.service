@@ -1,0 +1,19 @@
+# Агент: перед копированием на сервер создай пользователя app:
+# useradd -r -m -d /opt/app -s /bin/bash app && chown -R app:app /opt/app
+
+[Unit]
+Description=${APP_NAME}
+After=network.target
+
+[Service]
+User=app
+Group=app
+WorkingDirectory=/opt/app
+Environment=PATH=/opt/app/venv/bin
+EnvironmentFile=/opt/app/.env
+ExecStart=/opt/app/venv/bin/gunicorn main:app -w 4 -b 0.0.0.0:${PORT}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
